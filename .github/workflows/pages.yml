@@ -49,6 +49,41 @@ jobs:
           cp route/day2.html _site/route/day2.html
           touch _site/.nojekyll
 
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('_site/index.html')
+          text = path.read_text(encoding='utf-8')
+
+          match = re.search(r'(<section id="day2".*?</section>)', text, re.S)
+          if not match:
+              raise RuntimeError('Day 2 section not found')
+
+          day2 = match.group(1)
+          day2 = day2.replace('<time>11:30</time>', '<time>__DAY2_1200__</time>', 1)
+          day2 = day2.replace('<time>12:00</time>', '<time>12:30</time>', 1)
+          day2 = day2.replace('<time>13:30</time>', '<time>14:00</time>', 1)
+          day2 = day2.replace('<time>__DAY2_1200__</time>', '<time>12:00</time>', 1)
+
+          text = text[:match.start(1)] + day2 + text[match.end(1):]
+          text = text.replace(
+              '<div class="route-stop"><b>宜蘭市</b><span>11:30–13:30</span><small>WORDS</small></div>',
+              '<div class="route-stop"><b>宜蘭市</b><span>12:00–14:00</span><small>WORDS</small></div>',
+              1,
+          )
+          text = text.replace('維持 12:00 文學館節奏', '維持 12:30 文學館節奏', 1)
+
+          updated_day2 = re.search(r'<section id="day2".*?</section>', text, re.S).group(0)
+          times = re.findall(r'<time>(.*?)</time>', updated_day2)
+          expected = ['11:00', '12:00', '12:30', '14:00']
+          if times != expected:
+              raise RuntimeError(f'Unexpected Day 2 times: {times}; expected {expected}')
+
+          path.write_text(text, encoding='utf-8')
+          print(f'Validated Day 2 timeline: {times}')
+          PY
+
           echo "Verified index.html: ${index_bytes} bytes"
           echo "Verified embedded images: ${embedded_images}"
 
