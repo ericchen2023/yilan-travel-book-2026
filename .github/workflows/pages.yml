@@ -1,4 +1,4 @@
-name: Deploy cache-busted HD travel site
+name: Deploy stable Yilan travel site
 
 on:
   push:
@@ -19,101 +19,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Build clean HD edition
+      - name: Build static site without external downloads
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check --quiet pillow
-          rm -rf _site /tmp/yilan-hd
-          mkdir -p _site/assets /tmp/yilan-hd
-          cp index.html styles.css app.js manifest.webmanifest _site/
+          rm -rf _site
+          mkdir -p _site/assets
+          cp index.html styles.css _site/
           cp assets/route-day1.png assets/route-day2.png _site/assets/
           touch _site/.nojekyll
 
-          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safari/537.36'
-          fetch_image() {
-            local output="$1"; shift
-            rm -f "$output"
-            for url in "$@"; do
-              echo "Trying $url"
-              if curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 120 -A "$UA" -o "$output" "$url"; then
-                if [ -s "$output" ] && [ "$(wc -c < "$output")" -gt 15000 ]; then
-                  return 0
-                fi
-              fi
-              rm -f "$output"
-            done
-            echo "Unable to download $output" >&2
-            return 1
-          }
-
-          fetch_image /tmp/yilan-hd/kayak-river.jpg \
-            'https://travel.yilan.gov.tw/_api/content/images/attractions/26785/1920x1440_attractions-image-uvm8v0refe24bu47ohscww.jpg' \
-            'https://travel.yilan.gov.tw/_api/content/images/attractions/26785/640x480_attractions-image-uvm8v0refe24bu47ohscww.jpg'
-          fetch_image /tmp/yilan-hd/kayak-people.jpg \
-            'https://travel.yilan.gov.tw/_api/content/images/tours/27157/1600x1200_tours-image-0arcjhecvek1oto-caamsa.jpg' \
-            'https://travel.yilan.gov.tw/_api/content/images/tours/27157/480x360_tours-image-0arcjhecvek1oto-caamsa.jpg'
-          fetch_image /tmp/yilan-hd/zaoweizi.jpg \
-            'https://travel.dongshan.gov.tw/uploads/travel/00000043.jpg'
-          fetch_image /tmp/yilan-hd/linchang.jpg \
-            'https://www.luodongtravel.tw/files/store/5_8481.jpg'
-          fetch_image /tmp/yilan-hd/forestry-pond.jpg \
-            'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/01_BASE_01.jpg' \
-            'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/02_BASE_02.jpg'
-          fetch_image /tmp/yilan-hd/forestry-station.jpg \
-            'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/009.jpg' \
-            'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/004.jpg'
-          fetch_image /tmp/yilan-hd/hotel.jpg \
-            'https://taiwan.taiwanstay.net.tw/twpic/75310.jpg?v=20251022' \
-            'https://cdn.walkerland.com.tw/images/upload/poi/p28311/m26248/2ce3dc3a48e908fe21ed7dc1c36a0ddffd50b4a5.jpg'
-          fetch_image /tmp/yilan-hd/literature-exterior.jpg \
-            'https://www-ws.e-land.gov.tw/001/2015yilan/259/ckfile/ac3e9967-6d9d-4ee6-b5c9-8da47209ce31.jpg'
-          fetch_image /tmp/yilan-hd/literature-interior.jpg \
-            'https://www-ws.e-land.gov.tw/001/2015yilan/259/ckfile/124fd124-8258-4ee4-baad-1ba952c3f2ee.jpg'
-
           python - <<'PY'
           from pathlib import Path
-          from PIL import Image, ImageOps
-          import re
-
-          src = Path('/tmp/yilan-hd')
-          dst = Path('_site/assets')
-          jobs = [
-              ('kayak-river.jpg', 'kayak-river-hd3.webp', 1600, 1200, 600),
-              ('kayak-people.jpg', 'kayak-people-hd3.webp', 1400, 800, 450),
-              ('hotel.jpg', 'hotel-hd3.webp', 1400, 800, 450),
-              ('zaoweizi.jpg', 'zaoweizi-hd3.webp', 1200, 600, 400),
-              ('linchang.jpg', 'linchang-hd3.webp', 1000, 600, 350),
-              ('forestry-pond.jpg', 'forestry-pond-hd3.webp', 1800, 900, 500),
-              ('forestry-station.jpg', 'forestry-station-hd3.webp', 1400, 700, 400),
-              ('literature-exterior.jpg', 'literature-exterior-hd3.webp', 1600, 800, 450),
-              ('literature-interior.jpg', 'literature-interior-hd3.webp', 1600, 800, 450),
-          ]
-          for source_name, output_name, max_width, min_width, min_height in jobs:
-              image = ImageOps.exif_transpose(Image.open(src / source_name)).convert('RGB')
-              if image.width < min_width or image.height < min_height:
-                  raise RuntimeError(f'{source_name} is too small: {image.size}')
-              if image.width > max_width:
-                  image = image.resize((max_width, round(image.height * max_width / image.width)), Image.Resampling.LANCZOS)
-              output = dst / output_name
-              image.save(output, 'WEBP', quality=90, method=6)
-              if output.stat().st_size < 20000:
-                  raise RuntimeError(f'{output_name} is invalid: {output.stat().st_size} bytes')
-              print(f'{output_name}: {image.width}x{image.height}, {output.stat().st_size} bytes')
 
           replacements = {
-              'assets/kayak-river.webp': 'assets/kayak-river-hd3.webp',
-              'assets/kayak-people.webp': 'assets/kayak-people-hd3.webp',
-              'assets/hotel.webp': 'assets/hotel-hd3.webp',
-              'assets/zaoweizi.jpg': 'assets/zaoweizi-hd3.webp',
-              'assets/linchang.jpg': 'assets/linchang-hd3.webp',
-              'assets/forestry-pond.jpg': 'assets/forestry-pond-hd3.webp',
-              'assets/forestry-station.jpg': 'assets/forestry-station-hd3.webp',
-              'assets/literature-exterior.jpg': 'assets/literature-exterior-hd3.webp',
-              'assets/literature-interior.jpg': 'assets/literature-interior-hd3.webp',
+              'assets/kayak-river.webp': 'https://travel.yilan.gov.tw/_api/content/images/attractions/26785/1920x1440_attractions-image-uvm8v0refe24bu47ohscww.jpg?v=5',
+              'assets/kayak-people.webp': 'https://travel.yilan.gov.tw/_api/content/images/tours/27157/1600x1200_tours-image-0arcjhecvek1oto-caamsa.jpg?v=5',
+              'assets/zaoweizi.jpg': 'https://travel.dongshan.gov.tw/uploads/travel/00000043.jpg?v=5',
+              'assets/linchang.jpg': 'https://www.luodongtravel.tw/files/store/5_8481.jpg?v=5',
+              'assets/forestry-pond.jpg': 'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/01_BASE_01.jpg?v=5',
+              'assets/forestry-station.jpg': 'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/009.jpg?v=5',
+              'assets/hotel.webp': 'https://taiwan.taiwanstay.net.tw/twpic/75310.jpg?v=20251022&sitev=5',
+              'assets/literature-exterior.jpg': 'https://www-ws.e-land.gov.tw/001/2015yilan/259/ckfile/ac3e9967-6d9d-4ee6-b5c9-8da47209ce31.jpg?v=5',
+              'assets/literature-interior.jpg': 'https://www-ws.e-land.gov.tw/001/2015yilan/259/ckfile/124fd124-8258-4ee4-baad-1ba952c3f2ee.jpg?v=5',
           }
+
           for filename in ('index.html', 'styles.css'):
               path = Path('_site') / filename
               text = path.read_text(encoding='utf-8')
@@ -123,39 +55,52 @@ jobs:
 
           index = Path('_site/index.html')
           text = index.read_text(encoding='utf-8')
-          reset = '''<script>
+          text = text.replace('<link rel="manifest" href="manifest.webmanifest" />', '')
+          text = text.replace('下載原尺寸 PDF', '列印／另存 PDF')
+          text = text.replace(
+              '<button class="button button-ghost-light" id="installButton" type="button" hidden>加入主畫面</button>',
+              ''
+          )
+          cache_reset = '''<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+          <meta http-equiv="Pragma" content="no-cache" />
+          <meta http-equiv="Expires" content="0" />
+          <script>
           (async()=>{
             try {
               if ('serviceWorker' in navigator) {
                 const registrations = await navigator.serviceWorker.getRegistrations();
-                await Promise.all(registrations.map(r => r.unregister()));
+                await Promise.all(registrations.map(registration => registration.unregister()));
               }
               if ('caches' in window) {
                 const keys = await caches.keys();
-                await Promise.all(keys.map(k => caches.delete(k)));
+                await Promise.all(keys.map(key => caches.delete(key)));
               }
             } catch (_) {}
           })();
           </script>'''
-          text = text.replace('</head>', reset + '\n</head>')
-          text = text.replace('<link rel="manifest" href="manifest.webmanifest" />', '')
+          text = text.replace('</head>', cache_reset + '\n</head>')
           index.write_text(text, encoding='utf-8')
 
-          app = Path('_site/app.js')
-          app_text = app.read_text(encoding='utf-8')
-          app_text = re.sub(
-              r"\n\s*if \('serviceWorker' in navigator.*?\n\s*}\n(?=\}\)\(\);)",
-              "\n  // Service Worker disabled to prevent stale image caches.\n",
-              app_text,
-              flags=re.S,
-          )
-          app.write_text(app_text, encoding='utf-8')
+          Path('_site/app.js').write_text('''(() => {
+            const body = document.body;
+            const themeToggle = document.getElementById('themeToggle');
+            const storedTheme = localStorage.getItem('yilan-theme');
+            if (storedTheme === 'dark') body.classList.add('dark');
+            themeToggle?.addEventListener('click', () => {
+              body.classList.toggle('dark');
+              localStorage.setItem('yilan-theme', body.classList.contains('dark') ? 'dark' : 'light');
+            });
+            const exportPdf = () => window.print();
+            document.getElementById('printButton')?.addEventListener('click', exportPdf);
+            document.getElementById('mobilePrint')?.addEventListener('click', exportPdf);
+          })();
+          ''', encoding='utf-8')
           PY
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload site
+      - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
           path: "_site"
