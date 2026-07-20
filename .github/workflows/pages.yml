@@ -20,8 +20,114 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Restore correctly matched HD travel images
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet pillow
+          mkdir -p /tmp/yilan-images assets
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safari/537.36'
+
+          fetch_image() {
+            local output="$1"
+            shift
+            rm -f "$output"
+            for url in "$@"; do
+              echo "Trying $url"
+              if curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 120 -A "$UA" -o "$output" "$url"; then
+                if [ -s "$output" ] && [ "$(wc -c < "$output")" -gt 15000 ]; then
+                  echo "Downloaded $output ($(wc -c < "$output") bytes)"
+                  return 0
+                fi
+              fi
+              rm -f "$output"
+            done
+            echo "Unable to download $output" >&2
+            return 1
+          }
+
+          fetch_image /tmp/yilan-images/kayak-river.jpg \
+            'https://travel.yilan.gov.tw/_api/content/images/attractions/26785/1920x1440_attractions-image-uvm8v0refe24bu47ohscww.jpg' \
+            'https://supertaste-images.tvbs.com.tw/?q=90&url=https%3A%2F%2Fcc.tvbs.com.tw%2Fimg%2Fprogram%2Fupload%2F2026%2F01%2F21%2F20260121184450-026de664.jpg&w=1920' \
+            'https://travel.yilan.gov.tw/_api/content/images/attractions/26785/640x480_attractions-image-uvm8v0refe24bu47ohscww.jpg'
+
+          fetch_image /tmp/yilan-images/kayak-people.jpg \
+            'https://travel.yilan.gov.tw/_api/content/images/tours/27157/1600x1200_tours-image-0arcjhecvek1oto-caamsa.jpg' \
+            'https://travel.yilan.gov.tw/_api/content/images/tours/27157/480x360_tours-image-0arcjhecvek1oto-caamsa.jpg' \
+            'https://supertaste-images.tvbs.com.tw/?q=88&url=https%3A%2F%2Fcc.tvbs.com.tw%2Fimg%2Fprogram%2Fupload%2F2026%2F01%2F21%2F20260121184450-026de664.jpg&w=1440'
+
+          fetch_image /tmp/yilan-images/zaoweizi.jpg \
+            'https://travel.dongshan.gov.tw/uploads/travel/00000043.jpg'
+
+          fetch_image /tmp/yilan-images/linchang.jpg \
+            'https://www.luodongtravel.tw/files/store/5_8481.jpg'
+
+          fetch_image /tmp/yilan-images/forestry-pond.jpg \
+            'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/01_BASE_01.jpg' \
+            'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/02_BASE_02.jpg'
+
+          fetch_image /tmp/yilan-images/forestry-station.jpg \
+            'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/009.jpg' \
+            'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/004.jpg'
+
+          fetch_image /tmp/yilan-images/hotel.jpg \
+            'https://taiwan.taiwanstay.net.tw/twpic/75310.jpg?v=20251022' \
+            'https://cdn.walkerland.com.tw/images/upload/poi/p28311/m26248/2ce3dc3a48e908fe21ed7dc1c36a0ddffd50b4a5.jpg'
+
+          fetch_image /tmp/yilan-images/literature-exterior.jpg \
+            'https://www-ws.e-land.gov.tw/001/2015yilan/259/ckfile/ac3e9967-6d9d-4ee6-b5c9-8da47209ce31.jpg'
+
+          fetch_image /tmp/yilan-images/literature-interior.jpg \
+            'https://www-ws.e-land.gov.tw/001/2015yilan/259/ckfile/124fd124-8258-4ee4-baad-1ba952c3f2ee.jpg'
+
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageOps
+
+          src = Path('/tmp/yilan-images')
+          dst = Path('assets')
+          jobs = [
+              ('kayak-river.jpg', 'kayak-river.webp', 1920, 'WEBP'),
+              ('kayak-people.jpg', 'kayak-people.webp', 1400, 'WEBP'),
+              ('hotel.jpg', 'hotel.webp', 1400, 'WEBP'),
+              ('zaoweizi.jpg', 'zaoweizi.jpg', 1400, 'JPEG'),
+              ('linchang.jpg', 'linchang.jpg', 1200, 'JPEG'),
+              ('forestry-pond.jpg', 'forestry-pond.jpg', 1800, 'JPEG'),
+              ('forestry-station.jpg', 'forestry-station.jpg', 1400, 'JPEG'),
+              ('literature-exterior.jpg', 'literature-exterior.jpg', 1600, 'JPEG'),
+              ('literature-interior.jpg', 'literature-interior.jpg', 1600, 'JPEG'),
+          ]
+
+          for source_name, output_name, max_width, fmt in jobs:
+              image = ImageOps.exif_transpose(Image.open(src / source_name)).convert('RGB')
+              if image.width > max_width:
+                  height = round(image.height * max_width / image.width)
+                  image = image.resize((max_width, height), Image.Resampling.LANCZOS)
+              output = dst / output_name
+              if fmt == 'WEBP':
+                  image.save(output, fmt, quality=88, method=6)
+              else:
+                  image.save(output, fmt, quality=90, optimize=True, progressive=True)
+              if image.width < 600 or image.height < 350:
+                  raise RuntimeError(f'{output_name} resolution too small: {image.size}')
+              if output.stat().st_size < 20000:
+                  raise RuntimeError(f'{output_name} file too small: {output.stat().st_size}')
+              print(f'{output_name}: {image.width}x{image.height}, {output.stat().st_size} bytes')
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('sw.js')
+          text = path.read_text(encoding='utf-8')
+          text = re.sub(r"yilan-field-edition-v[^']+", 'yilan-field-edition-v6-hd-corrected', text)
+          path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
+
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
