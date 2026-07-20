@@ -1,4 +1,4 @@
-name: Deploy exact standalone travel book
+name: Deploy final verified standalone travel book
 
 on:
   push:
@@ -18,11 +18,48 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Assemble and validate standalone site
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site/route
+
+          test -s index.html
+          test -s route/day1.html
+          test -s route/day2.html
+
+          index_bytes=$(wc -c < index.html)
+          if [ "$index_bytes" -lt 1000000 ]; then
+            echo "::error title=Invalid index.html::Expected the verified standalone page to be at least 1 MB, but found ${index_bytes} bytes."
+            exit 1
+          fi
+
+          embedded_images=$(grep -o 'data:image/' index.html | wc -l)
+          if [ "$embedded_images" -lt 13 ]; then
+            echo "::error title=Missing embedded images::Expected at least 13 embedded images, but found ${embedded_images}."
+            exit 1
+          fi
+
+          cp index.html _site/index.html
+          cp route/day1.html _site/route/day1.html
+          cp route/day2.html _site/route/day2.html
+          touch _site/.nojekyll
+
+          echo "Verified index.html: ${index_bytes} bytes"
+          echo "Verified embedded images: ${embedded_images}"
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload verified site
+        uses: actions/upload-pages-artifact@v4
         with:
-          path: publish
+          path: _site
+
   deploy:
     environment:
       name: github-pages
@@ -30,5 +67,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - id: deployment
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
