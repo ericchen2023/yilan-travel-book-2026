@@ -49,13 +49,12 @@ jobs:
 
           fetch_image /tmp/yilan-images/kayak-river.jpg \
             'https://travel.yilan.gov.tw/_api/content/images/attractions/26785/1920x1440_attractions-image-uvm8v0refe24bu47ohscww.jpg' \
-            'https://supertaste-images.tvbs.com.tw/?q=90&url=https%3A%2F%2Fcc.tvbs.com.tw%2Fimg%2Fprogram%2Fupload%2F2026%2F01%2F21%2F20260121184450-026de664.jpg&w=1920' \
-            'https://travel.yilan.gov.tw/_api/content/images/attractions/26785/640x480_attractions-image-uvm8v0refe24bu47ohscww.jpg'
+            'https://supertaste-images.tvbs.com.tw/?q=90&url=https%3A%2F%2Fcc.tvbs.com.tw%2Fimg%2Fprogram%2Fupload%2F2026%2F01%2F21%2F20260121184450-026de664.jpg&w=1920'
 
           fetch_image /tmp/yilan-images/kayak-people.jpg \
             'https://travel.yilan.gov.tw/_api/content/images/tours/27157/1600x1200_tours-image-0arcjhecvek1oto-caamsa.jpg' \
-            'https://travel.yilan.gov.tw/_api/content/images/tours/27157/480x360_tours-image-0arcjhecvek1oto-caamsa.jpg' \
-            'https://supertaste-images.tvbs.com.tw/?q=88&url=https%3A%2F%2Fcc.tvbs.com.tw%2Fimg%2Fprogram%2Fupload%2F2026%2F01%2F21%2F20260121184450-026de664.jpg&w=1440'
+            'https://supertaste-images.tvbs.com.tw/?q=88&url=https%3A%2F%2Fcc.tvbs.com.tw%2Fimg%2Fprogram%2Fupload%2F2026%2F01%2F21%2F20260121184450-026de664.jpg&w=1440' \
+            'https://travel.yilan.gov.tw/_api/content/images/tours/27157/480x360_tours-image-0arcjhecvek1oto-caamsa.jpg'
 
           fetch_image /tmp/yilan-images/zaoweizi.jpg \
             'https://travel.dongshan.gov.tw/uploads/travel/00000043.jpg'
@@ -88,29 +87,29 @@ jobs:
           src = Path('/tmp/yilan-images')
           dst = Path('assets')
           jobs = [
-              ('kayak-river.jpg', 'kayak-river.webp', 1920, 'WEBP'),
-              ('kayak-people.jpg', 'kayak-people.webp', 1400, 'WEBP'),
-              ('hotel.jpg', 'hotel.webp', 1400, 'WEBP'),
-              ('zaoweizi.jpg', 'zaoweizi.jpg', 1400, 'JPEG'),
-              ('linchang.jpg', 'linchang.jpg', 1200, 'JPEG'),
-              ('forestry-pond.jpg', 'forestry-pond.jpg', 1800, 'JPEG'),
-              ('forestry-station.jpg', 'forestry-station.jpg', 1400, 'JPEG'),
-              ('literature-exterior.jpg', 'literature-exterior.jpg', 1600, 'JPEG'),
-              ('literature-interior.jpg', 'literature-interior.jpg', 1600, 'JPEG'),
+              ('kayak-river.jpg', 'kayak-river.webp', 1920, 'WEBP', 1200, 600),
+              ('kayak-people.jpg', 'kayak-people.webp', 1400, 'WEBP', 800, 450),
+              ('hotel.jpg', 'hotel.webp', 1400, 'WEBP', 800, 450),
+              ('zaoweizi.jpg', 'zaoweizi.jpg', 1400, 'JPEG', 800, 450),
+              ('linchang.jpg', 'linchang.jpg', 1200, 'JPEG', 600, 350),
+              ('forestry-pond.jpg', 'forestry-pond.jpg', 1800, 'JPEG', 1000, 600),
+              ('forestry-station.jpg', 'forestry-station.jpg', 1400, 'JPEG', 600, 350),
+              ('literature-exterior.jpg', 'literature-exterior.jpg', 1600, 'JPEG', 900, 550),
+              ('literature-interior.jpg', 'literature-interior.jpg', 1600, 'JPEG', 900, 550),
           ]
 
-          for source_name, output_name, max_width, fmt in jobs:
+          for source_name, output_name, max_width, fmt, min_width, min_height in jobs:
               image = ImageOps.exif_transpose(Image.open(src / source_name)).convert('RGB')
               if image.width > max_width:
                   height = round(image.height * max_width / image.width)
                   image = image.resize((max_width, height), Image.Resampling.LANCZOS)
+              if image.width < min_width or image.height < min_height:
+                  raise RuntimeError(f'{output_name} resolution too small: {image.size}; required {min_width}x{min_height}')
               output = dst / output_name
               if fmt == 'WEBP':
                   image.save(output, fmt, quality=88, method=6)
               else:
                   image.save(output, fmt, quality=90, optimize=True, progressive=True)
-              if image.width < 600 or image.height < 350:
-                  raise RuntimeError(f'{output_name} resolution too small: {image.size}')
               if output.stat().st_size < 20000:
                   raise RuntimeError(f'{output_name} file too small: {output.stat().st_size}')
               print(f'{output_name}: {image.width}x{image.height}, {output.stat().st_size} bytes')
@@ -121,7 +120,7 @@ jobs:
           import re
           path = Path('sw.js')
           text = path.read_text(encoding='utf-8')
-          text = re.sub(r"yilan-field-edition-v[^']+", 'yilan-field-edition-v6-hd-corrected', text)
+          text = re.sub(r"yilan-field-edition-v[^']+", 'yilan-field-edition-v7-hd-corrected', text)
           path.write_text(text, encoding='utf-8')
           PY
 
