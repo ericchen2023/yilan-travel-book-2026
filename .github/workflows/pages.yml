@@ -1,4 +1,4 @@
-name: Deploy static site to GitHub Pages
+name: Deploy cache-busted HD travel site
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -21,23 +21,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore correctly matched HD travel images
+      - name: Build clean HD edition
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check --quiet pillow
-          mkdir -p /tmp/yilan-images assets
-          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safari/537.36'
+          rm -rf _site /tmp/yilan-hd
+          mkdir -p _site/assets /tmp/yilan-hd
+          cp index.html styles.css app.js manifest.webmanifest _site/
+          cp -r assets/route-day1.png assets/route-day2.png _site/assets/
+          touch _site/.nojekyll
 
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safari/537.36'
           fetch_image() {
-            local output="$1"
-            shift
+            local output="$1"; shift
             rm -f "$output"
             for url in "$@"; do
               echo "Trying $url"
               if curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 120 -A "$UA" -o "$output" "$url"; then
                 if [ -s "$output" ] && [ "$(wc -c < "$output")" -gt 15000 ]; then
-                  echo "Downloaded $output ($(wc -c < "$output") bytes)"
                   return 0
                 fi
               fi
@@ -47,81 +49,103 @@ jobs:
             return 1
           }
 
-          fetch_image /tmp/yilan-images/kayak-river.jpg \
+          fetch_image /tmp/yilan-hd/kayak-river.jpg \
             'https://travel.yilan.gov.tw/_api/content/images/attractions/26785/1920x1440_attractions-image-uvm8v0refe24bu47ohscww.jpg' \
-            'https://supertaste-images.tvbs.com.tw/?q=90&url=https%3A%2F%2Fcc.tvbs.com.tw%2Fimg%2Fprogram%2Fupload%2F2026%2F01%2F21%2F20260121184450-026de664.jpg&w=1920'
-
-          fetch_image /tmp/yilan-images/kayak-people.jpg \
+            'https://travel.yilan.gov.tw/_api/content/images/attractions/26785/640x480_attractions-image-uvm8v0refe24bu47ohscww.jpg'
+          fetch_image /tmp/yilan-hd/kayak-people.jpg \
             'https://travel.yilan.gov.tw/_api/content/images/tours/27157/1600x1200_tours-image-0arcjhecvek1oto-caamsa.jpg' \
-            'https://supertaste-images.tvbs.com.tw/?q=88&url=https%3A%2F%2Fcc.tvbs.com.tw%2Fimg%2Fprogram%2Fupload%2F2026%2F01%2F21%2F20260121184450-026de664.jpg&w=1440' \
             'https://travel.yilan.gov.tw/_api/content/images/tours/27157/480x360_tours-image-0arcjhecvek1oto-caamsa.jpg'
-
-          fetch_image /tmp/yilan-images/zaoweizi.jpg \
+          fetch_image /tmp/yilan-hd/zaoweizi.jpg \
             'https://travel.dongshan.gov.tw/uploads/travel/00000043.jpg'
-
-          fetch_image /tmp/yilan-images/linchang.jpg \
+          fetch_image /tmp/yilan-hd/linchang.jpg \
             'https://www.luodongtravel.tw/files/store/5_8481.jpg'
-
-          fetch_image /tmp/yilan-images/forestry-pond.jpg \
+          fetch_image /tmp/yilan-hd/forestry-pond.jpg \
             'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/01_BASE_01.jpg' \
             'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/02_BASE_02.jpg'
-
-          fetch_image /tmp/yilan-images/forestry-station.jpg \
+          fetch_image /tmp/yilan-hd/forestry-station.jpg \
             'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/009.jpg' \
             'https://recreation.forest.gov.tw/Files/Forestry/CP/photo/album/0100021/004.jpg'
-
-          fetch_image /tmp/yilan-images/hotel.jpg \
+          fetch_image /tmp/yilan-hd/hotel.jpg \
             'https://taiwan.taiwanstay.net.tw/twpic/75310.jpg?v=20251022' \
             'https://cdn.walkerland.com.tw/images/upload/poi/p28311/m26248/2ce3dc3a48e908fe21ed7dc1c36a0ddffd50b4a5.jpg'
-
-          fetch_image /tmp/yilan-images/literature-exterior.jpg \
+          fetch_image /tmp/yilan-hd/literature-exterior.jpg \
             'https://www-ws.e-land.gov.tw/001/2015yilan/259/ckfile/ac3e9967-6d9d-4ee6-b5c9-8da47209ce31.jpg'
-
-          fetch_image /tmp/yilan-images/literature-interior.jpg \
+          fetch_image /tmp/yilan-hd/literature-interior.jpg \
             'https://www-ws.e-land.gov.tw/001/2015yilan/259/ckfile/124fd124-8258-4ee4-baad-1ba952c3f2ee.jpg'
 
           python - <<'PY'
           from pathlib import Path
           from PIL import Image, ImageOps
 
-          src = Path('/tmp/yilan-images')
-          dst = Path('assets')
+          src = Path('/tmp/yilan-hd')
+          dst = Path('_site/assets')
           jobs = [
-              ('kayak-river.jpg', 'kayak-river.webp', 1920, 'WEBP', 1200, 600),
-              ('kayak-people.jpg', 'kayak-people.webp', 1400, 'WEBP', 800, 450),
-              ('hotel.jpg', 'hotel.webp', 1400, 'WEBP', 800, 450),
-              ('zaoweizi.jpg', 'zaoweizi.jpg', 1400, 'JPEG', 800, 450),
-              ('linchang.jpg', 'linchang.jpg', 1200, 'JPEG', 600, 350),
-              ('forestry-pond.jpg', 'forestry-pond.jpg', 1800, 'JPEG', 1000, 600),
-              ('forestry-station.jpg', 'forestry-station.jpg', 1400, 'JPEG', 600, 350),
-              ('literature-exterior.jpg', 'literature-exterior.jpg', 1600, 'JPEG', 900, 550),
-              ('literature-interior.jpg', 'literature-interior.jpg', 1600, 'JPEG', 900, 550),
+              ('kayak-river.jpg', 'kayak-river-hd3.webp', 1600, 1200, 600),
+              ('kayak-people.jpg', 'kayak-people-hd3.webp', 1400, 800, 450),
+              ('hotel.jpg', 'hotel-hd3.webp', 1400, 800, 450),
+              ('zaoweizi.jpg', 'zaoweizi-hd3.webp', 1200, 600, 400),
+              ('linchang.jpg', 'linchang-hd3.webp', 1000, 600, 350),
+              ('forestry-pond.jpg', 'forestry-pond-hd3.webp', 1800, 900, 500),
+              ('forestry-station.jpg', 'forestry-station-hd3.webp', 1400, 700, 400),
+              ('literature-exterior.jpg', 'literature-exterior-hd3.webp', 1600, 800, 450),
+              ('literature-interior.jpg', 'literature-interior-hd3.webp', 1600, 800, 450),
           ]
-
-          for source_name, output_name, max_width, fmt, min_width, min_height in jobs:
+          for source_name, output_name, max_width, min_width, min_height in jobs:
               image = ImageOps.exif_transpose(Image.open(src / source_name)).convert('RGB')
-              if image.width > max_width:
-                  height = round(image.height * max_width / image.width)
-                  image = image.resize((max_width, height), Image.Resampling.LANCZOS)
               if image.width < min_width or image.height < min_height:
-                  raise RuntimeError(f'{output_name} resolution too small: {image.size}; required {min_width}x{min_height}')
+                  raise RuntimeError(f'{source_name} is too small: {image.size}')
+              if image.width > max_width:
+                  image = image.resize((max_width, round(image.height * max_width / image.width)), Image.Resampling.LANCZOS)
               output = dst / output_name
-              if fmt == 'WEBP':
-                  image.save(output, fmt, quality=88, method=6)
-              else:
-                  image.save(output, fmt, quality=90, optimize=True, progressive=True)
+              image.save(output, 'WEBP', quality=90, method=6)
               if output.stat().st_size < 20000:
-                  raise RuntimeError(f'{output_name} file too small: {output.stat().st_size}')
+                  raise RuntimeError(f'{output_name} is invalid: {output.stat().st_size} bytes')
               print(f'{output_name}: {image.width}x{image.height}, {output.stat().st_size} bytes')
-          PY
 
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          path = Path('sw.js')
-          text = path.read_text(encoding='utf-8')
-          text = re.sub(r"yilan-field-edition-v[^']+", 'yilan-field-edition-v7-hd-corrected', text)
-          path.write_text(text, encoding='utf-8')
+          replacements = {
+              'assets/kayak-river.webp': 'assets/kayak-river-hd3.webp',
+              'assets/kayak-people.webp': 'assets/kayak-people-hd3.webp',
+              'assets/hotel.webp': 'assets/hotel-hd3.webp',
+              'assets/zaoweizi.jpg': 'assets/zaoweizi-hd3.webp',
+              'assets/linchang.jpg': 'assets/linchang-hd3.webp',
+              'assets/forestry-pond.jpg': 'assets/forestry-pond-hd3.webp',
+              'assets/forestry-station.jpg': 'assets/forestry-station-hd3.webp',
+              'assets/literature-exterior.jpg': 'assets/literature-exterior-hd3.webp',
+              'assets/literature-interior.jpg': 'assets/literature-interior-hd3.webp',
+          }
+          for filename in ('index.html', 'styles.css'):
+              path = Path('_site') / filename
+              text = path.read_text(encoding='utf-8')
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+              path.write_text(text, encoding='utf-8')
+
+          index = Path('_site/index.html')
+          text = index.read_text(encoding='utf-8')
+          reset = '''<script>
+          (async()=>{
+            try {
+              if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(registrations.map(r => r.unregister()));
+              }
+              if ('caches' in window) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map(k => caches.delete(k)));
+              }
+            } catch (_) {}
+          })();
+          </script>'''
+          text = text.replace('</head>', reset + '\n</head>')
+          text = text.replace('<link rel="manifest" href="manifest.webmanifest" />', '')
+          index.write_text(text, encoding='utf-8')
+
+          app = Path('_site/app.js')
+          app_text = app.read_text(encoding='utf-8')
+          marker = "if ('serviceWorker' in navigator"
+          if marker in app_text:
+              app_text = app_text[:app_text.index(marker)] + "// Service Worker intentionally disabled to prevent stale travel images.\n"
+          app.write_text(app_text, encoding='utf-8')
           PY
 
       - name: Configure Pages
@@ -130,7 +154,7 @@ jobs:
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "."
+          path: "_site"
 
   deploy:
     environment:
