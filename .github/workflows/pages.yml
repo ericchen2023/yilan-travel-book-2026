@@ -29,7 +29,7 @@ jobs:
           rm -rf _site /tmp/yilan-hd
           mkdir -p _site/assets /tmp/yilan-hd
           cp index.html styles.css app.js manifest.webmanifest _site/
-          cp -r assets/route-day1.png assets/route-day2.png _site/assets/
+          cp assets/route-day1.png assets/route-day2.png _site/assets/
           touch _site/.nojekyll
 
           UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safari/537.36'
@@ -76,6 +76,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           from PIL import Image, ImageOps
+          import re
 
           src = Path('/tmp/yilan-hd')
           dst = Path('_site/assets')
@@ -142,9 +143,12 @@ jobs:
 
           app = Path('_site/app.js')
           app_text = app.read_text(encoding='utf-8')
-          marker = "if ('serviceWorker' in navigator"
-          if marker in app_text:
-              app_text = app_text[:app_text.index(marker)] + "// Service Worker intentionally disabled to prevent stale travel images.\n"
+          app_text = re.sub(
+              r"\n\s*if \('serviceWorker' in navigator.*?\n\s*}\n(?=\}\)\(\);)",
+              "\n  // Service Worker disabled to prevent stale image caches.\n",
+              app_text,
+              flags=re.S,
+          )
           app.write_text(app_text, encoding='utf-8')
           PY
 
