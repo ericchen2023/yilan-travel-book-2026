@@ -1,0 +1,11 @@
+{
+  "name": "蘭陽・水與木的兩日紀行",
+  "short_name": "宜蘭旅行書",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f0e8",
+  "theme_color": "#10231f",
+  "lang": "zh-Hant",
+  "description": "2026 宜蘭冬山、羅東、礁溪與宜蘭市兩日旅行書"
+}
