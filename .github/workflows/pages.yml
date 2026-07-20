@@ -1,4 +1,4 @@
-name: Deploy corrected Yilan travel site
+name: Deploy exact standalone travel book
 
 on:
   push:
@@ -19,72 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
-      - name: Assemble corrected site
-        shell: bash
-        env:
-          HERO_URL: "https://commons.wikimedia.org/wiki/Special:Redirect/file/%E5%AE%89%E8%BE%B2%E6%BA%AA%E6%B3%9B%E8%88%9F.jpg?width=2000"
-          KAYAK_URL: "https://commons.wikimedia.org/wiki/Special:Redirect/file/River%20Kayak.jpg?width=1600"
-          HOTEL_URL: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Evergreen%20Resort%20Hotel%20%28Jiaosi%29%2020110418.jpg?width=1600"
-        run: |
-          set -euo pipefail
-          rm -rf _site
-          mkdir -p _site/assets _site/route
-          cp index.html styles.css _site/
-          cp assets/zaoweizi.jpg assets/linchang.jpg assets/forestry-pond.jpg assets/forestry-station.jpg assets/literature-exterior.jpg assets/literature-interior.jpg _site/assets/
-          cp assets/route-day1.png assets/route-day2.png _site/assets/
-          touch _site/.nojekyll
-
-          HERO_REF="$HERO_URL"; KAYAK_REF="$KAYAK_URL"; HOTEL_REF="$HOTEL_URL"
-          curl -fL --retry 2 --connect-timeout 15 --max-time 90 "$HERO_URL" -o _site/assets/hero-v9.jpg && HERO_REF="assets/hero-v9.jpg" || rm -f _site/assets/hero-v9.jpg
-          curl -fL --retry 2 --connect-timeout 15 --max-time 90 "$KAYAK_URL" -o _site/assets/kayak-v9.jpg && KAYAK_REF="assets/kayak-v9.jpg" || rm -f _site/assets/kayak-v9.jpg
-          curl -fL --retry 2 --connect-timeout 15 --max-time 90 "$HOTEL_URL" -o _site/assets/hotel-v9.jpg && HOTEL_REF="assets/hotel-v9.jpg" || rm -f _site/assets/hotel-v9.jpg
-
-          if curl -fL --retry 2 --connect-timeout 15 --max-time 90 "https://api.qrserver.com/v1/create-qr-code/?size=540x540&margin=24&data=https%3A%2F%2Fericchen2023.github.io%2Fyilan-travel-book-2026%2Froute%2Fday1.html" -o /tmp/route-day1.png && [ "$(wc -c < /tmp/route-day1.png)" -gt 1000 ]; then
-            mv /tmp/route-day1.png _site/assets/route-day1.png
-          fi
-          if curl -fL --retry 2 --connect-timeout 15 --max-time 90 "https://api.qrserver.com/v1/create-qr-code/?size=540x540&margin=24&data=https%3A%2F%2Fericchen2023.github.io%2Fyilan-travel-book-2026%2Froute%2Fday2.html" -o /tmp/route-day2.png && [ "$(wc -c < /tmp/route-day2.png)" -gt 1000 ]; then
-            mv /tmp/route-day2.png _site/assets/route-day2.png
-          fi
-
-          export HERO_REF KAYAK_REF HOTEL_REF
-          python - <<'PY'
-          from pathlib import Path
-          import html, json, os
-
-          index = Path('_site/index.html')
-          text = index.read_text(encoding='utf-8')
-          text = text.replace('<link rel="manifest" href="manifest.webmanifest" />', '')
-          text = text.replace('<button class="button button-ghost-light" id="installButton" type="button" hidden>加入主畫面</button>', '')
-          text = text.replace('下載原尺寸 PDF', '列印／另存 PDF')
-          text = text.replace('assets/kayak-people.webp', os.environ['KAYAK_REF'])
-          text = text.replace('assets/hotel.webp', os.environ['HOTEL_REF'])
-          reset = """<script>(async()=>{try{if('serviceWorker'in navigator){const r=await navigator.serviceWorker.getRegistrations();await Promise.all(r.map(x=>x.unregister()))}if('caches'in window){const k=await caches.keys();await Promise.all(k.map(x=>caches.delete(x)))}}catch(_){}})();</script>"""
-          text = text.replace('</head>', reset + '</head>')
-          index.write_text(text, encoding='utf-8')
-
-          styles = Path('_site/styles.css')
-          css = styles.read_text(encoding='utf-8').replace('assets/kayak-river.webp', os.environ['HERO_REF'])
-          styles.write_text(css, encoding='utf-8')
-
-          Path('_site/app.js').write_text("""(()=>{const b=document.body,t=document.getElementById('themeToggle'),s=localStorage.getItem('yilan-theme');if(s==='dark')b.classList.add('dark');t?.addEventListener('click',()=>{b.classList.toggle('dark');localStorage.setItem('yilan-theme',b.classList.contains('dark')?'dark':'light')});const p=()=>window.print();document.getElementById('printButton')?.addEventListener('click',p);document.getElementById('mobilePrint')?.addEventListener('click',p)})();""", encoding='utf-8')
-
-          routes = {
-              'day1': "https://www.google.com/maps/dir/?api=1&origin=%E6%96%B0%E5%8C%97%E5%B8%82%E6%A8%B9%E6%9E%97%E5%8D%80&destination=%E9%95%B7%E6%A6%AE%E9%B3%B3%E5%87%B0%E9%85%92%E5%BA%97%20%E7%A4%81%E6%BA%AA&waypoints=%E6%97%A9%E8%83%83%E5%AD%90%20%E5%AE%9C%E8%98%AD%E5%86%AC%E5%B1%B1%7C%E6%B2%B3%E9%81%93%E5%9F%BA%E5%9C%B0%20%E5%AE%9C%E8%98%AD%E5%86%AC%E5%B1%B1%7C%E6%9E%97%E5%A0%B4%E8%82%89%E7%BE%B9%7C%E7%BE%85%E6%9D%B1%E6%9E%97%E6%A5%AD%E6%96%87%E5%8C%96%E5%9C%92%E5%8D%80&travelmode=driving",
-              'day2': "https://www.google.com/maps/dir/?api=1&origin=%E9%95%B7%E6%A6%AE%E9%B3%B3%E5%87%B0%E9%85%92%E5%BA%97%20%E7%A4%81%E6%BA%AA&destination=%E6%96%B0%E5%8C%97%E5%B8%82%E6%A8%B9%E6%9E%97%E5%8D%80&waypoints=%E6%B8%B8%E5%AE%B6%E9%BA%BB%E7%B3%AC%E7%B1%B3%E7%B3%95%20%E5%AE%9C%E8%98%AD%E5%B8%82%7C%E5%AE%9C%E8%98%AD%E6%96%87%E5%AD%B8%E9%A4%A8&travelmode=driving",
-          }
-          for name, url in routes.items():
-              page = f"""<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>{name}</title><body><p>正在開啟 Google Maps… <a href="{html.escape(url, quote=True)}">點此開啟路線</a></p><script>location.replace({json.dumps(url)})</script></body></html>"""
-              Path(f'_site/route/{name}.html').write_text(page, encoding='utf-8')
-          refresh = """<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>更新網站</title><body><p>正在清除舊版快取並返回首頁…</p><script>(async()=>{try{if('serviceWorker'in navigator){const r=await navigator.serviceWorker.getRegistrations();await Promise.all(r.map(x=>x.unregister()))}if('caches'in window){const k=await caches.keys();await Promise.all(k.map(x=>caches.delete(x)))}}finally{location.replace('./')}})();</script></body></html>"""
-          Path('_site/refresh.html').write_text(refresh, encoding='utf-8')
-          PY
-
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
-
+          path: publish
   deploy:
     environment:
       name: github-pages
