@@ -40,8 +40,12 @@ jobs:
           curl -fL --retry 2 --connect-timeout 15 --max-time 90 "$KAYAK_URL" -o _site/assets/kayak-v9.jpg && KAYAK_REF="assets/kayak-v9.jpg" || rm -f _site/assets/kayak-v9.jpg
           curl -fL --retry 2 --connect-timeout 15 --max-time 90 "$HOTEL_URL" -o _site/assets/hotel-v9.jpg && HOTEL_REF="assets/hotel-v9.jpg" || rm -f _site/assets/hotel-v9.jpg
 
-          curl -fL --retry 2 --connect-timeout 15 --max-time 90 "https://api.qrserver.com/v1/create-qr-code/?size=540x540&margin=24&data=https%3A%2F%2Fericchen2023.github.io%2Fyilan-travel-book-2026%2Froute%2Fday1.html" -o _site/assets/route-day1.png || true
-          curl -fL --retry 2 --connect-timeout 15 --max-time 90 "https://api.qrserver.com/v1/create-qr-code/?size=540x540&margin=24&data=https%3A%2F%2Fericchen2023.github.io%2Fyilan-travel-book-2026%2Froute%2Fday2.html" -o _site/assets/route-day2.png || true
+          if curl -fL --retry 2 --connect-timeout 15 --max-time 90 "https://api.qrserver.com/v1/create-qr-code/?size=540x540&margin=24&data=https%3A%2F%2Fericchen2023.github.io%2Fyilan-travel-book-2026%2Froute%2Fday1.html" -o /tmp/route-day1.png && [ "$(wc -c < /tmp/route-day1.png)" -gt 1000 ]; then
+            mv /tmp/route-day1.png _site/assets/route-day1.png
+          fi
+          if curl -fL --retry 2 --connect-timeout 15 --max-time 90 "https://api.qrserver.com/v1/create-qr-code/?size=540x540&margin=24&data=https%3A%2F%2Fericchen2023.github.io%2Fyilan-travel-book-2026%2Froute%2Fday2.html" -o /tmp/route-day2.png && [ "$(wc -c < /tmp/route-day2.png)" -gt 1000 ]; then
+            mv /tmp/route-day2.png _site/assets/route-day2.png
+          fi
 
           export HERO_REF KAYAK_REF HOTEL_REF
           python - <<'PY'
@@ -72,6 +76,8 @@ jobs:
           for name, url in routes.items():
               page = f"""<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>{name}</title><body><p>正在開啟 Google Maps… <a href="{html.escape(url, quote=True)}">點此開啟路線</a></p><script>location.replace({json.dumps(url)})</script></body></html>"""
               Path(f'_site/route/{name}.html').write_text(page, encoding='utf-8')
+          refresh = """<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>更新網站</title><body><p>正在清除舊版快取並返回首頁…</p><script>(async()=>{try{if('serviceWorker'in navigator){const r=await navigator.serviceWorker.getRegistrations();await Promise.all(r.map(x=>x.unregister()))}if('caches'in window){const k=await caches.keys();await Promise.all(k.map(x=>caches.delete(x)))}}finally{location.replace('./')}})();</script></body></html>"""
+          Path('_site/refresh.html').write_text(refresh, encoding='utf-8')
           PY
 
       - uses: actions/configure-pages@v5
